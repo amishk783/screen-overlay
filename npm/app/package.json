@@ -1,6 +1,9 @@
 {
   "name": "cross-window",
   "version": "0.1.0",
+  "description": "Query and focus OS windows by PID or window ID. Uses a native Rust binary for macOS support.",
+  "keywords": ["window", "focus", "macos", "native", "pid"],
+  "license": "MIT",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -8,10 +11,10 @@
     "bin"
   ],
   "scripts": {
+    "build": "tsc",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "build": "tsc --outDir dist",
     "dev": "yarn build && node dist/index.js"
   },
   "devDependencies": {
