@@ -6,6 +6,8 @@ use core_foundation::{
     number::CFNumberRef,
     string::CFString,
 };
+use objc::runtime::Object;
+use objc::{class, msg_send, sel, sel_impl};
 use serde::Serialize;
 use std::{ffi::c_void, ptr};
 
@@ -56,6 +58,8 @@ unsafe extern "C" {
     fn AXValueGetValue(value: CFTypeRef, value_type: i32, data: *mut c_void) -> bool;
     fn CGWindowListCopyWindowInfo(option: u32, relative_to_window: u32) -> CFArrayRef;
 }
+#[link(name = "AppKit", kind = "framework")]
+unsafe extern "C" {}
 
 pub fn get_windows(pid: u32) {
     unsafe {
@@ -185,8 +189,7 @@ pub fn get_window_by_id(target_window_id: u32) {
         let array = CFArray::<CFTypeRef>::wrap_under_create_rule(window_list);
 
         for i in 0..array.len() {
-            let dict_ref: CFDictionaryRef =
-                *array.get(i).unwrap() as CFDictionaryRef;
+            let dict_ref: CFDictionaryRef = *array.get(i).unwrap() as CFDictionaryRef;
 
             let window_id = get_u32_from_dict(dict_ref, "kCGWindowNumber");
 
@@ -196,8 +199,7 @@ pub fn get_window_by_id(target_window_id: u32) {
 
             let pid = get_u32_from_dict(dict_ref, "kCGWindowOwnerPID");
             let title = get_string_from_dict(dict_ref, "kCGWindowName");
-            let (x, y, width, height) =
-                get_bounds_from_dict(dict_ref, "kCGWindowBounds");
+            let (x, y, width, height) = get_bounds_from_dict(dict_ref, "kCGWindowBounds");
 
             let result = WindowInfo {
                 window_id,
@@ -221,12 +223,7 @@ unsafe fn get_u32_from_dict(dict: CFDictionaryRef, key: &str) -> u32 {
 
     let key_cf = CFString::new(key);
 
-    let value = unsafe {
-        CFDictionaryGetValue(
-            dict,
-            key_cf.as_concrete_TypeRef() as *const _,
-        )
-    };
+    let value = unsafe { CFDictionaryGetValue(dict, key_cf.as_concrete_TypeRef() as *const _) };
 
     if value.is_null() {
         return 0;
@@ -251,37 +248,24 @@ unsafe fn get_string_from_dict(dict: CFDictionaryRef, key: &str) -> String {
 
     let key_cf = CFString::new(key);
 
-    let value = unsafe {
-        CFDictionaryGetValue(
-            dict,
-            key_cf.as_concrete_TypeRef() as *const _,
-        )
-    };
+    let value = unsafe { CFDictionaryGetValue(dict, key_cf.as_concrete_TypeRef() as *const _) };
 
     if value.is_null() {
         return String::new();
     }
 
-    let cf_string = unsafe {
-        CFString::wrap_under_get_rule(value as _)
-    };
+    let cf_string = unsafe { CFString::wrap_under_get_rule(value as _) };
 
     cf_string.to_string()
 }
 
-unsafe fn get_bounds_from_dict(
-    dict: CFDictionaryRef,
-    key: &str,
-) -> (f64, f64, f64, f64) {
+unsafe fn get_bounds_from_dict(dict: CFDictionaryRef, key: &str) -> (f64, f64, f64, f64) {
     use core_foundation::dictionary::CFDictionaryGetValue;
 
     let key_cf = CFString::new(key);
 
     let bounds_dict_ref = unsafe {
-        CFDictionaryGetValue(
-            dict,
-            key_cf.as_concrete_TypeRef() as *const _,
-        ) as CFDictionaryRef
+        CFDictionaryGetValue(dict, key_cf.as_concrete_TypeRef() as *const _) as CFDictionaryRef
     };
 
     if bounds_dict_ref.is_null() {
@@ -294,75 +278,6 @@ unsafe fn get_bounds_from_dict(
     let height = get_u32_from_dict(bounds_dict_ref, "Height") as f64;
 
     (x, y, width, height)
-}
-
-
-pub fn focus_window(pid: u32, target_title: &str) {
-    unsafe {
-        let app = AXUIElementCreateApplication(pid as i32);
-
-        if app.is_null() {
-            println!(r#"{{"success":false}}"#);
-            return;
-        }
-
-        let windows_attr = CFString::new("AXWindows");
-        let mut windows_ref: CFTypeRef = ptr::null_mut();
-
-        if AXUIElementCopyAttributeValue(
-            app,
-            windows_attr.as_concrete_TypeRef() as CFTypeRef,
-            &mut windows_ref,
-        ) != 0
-            || windows_ref.is_null()
-        {
-            println!(r#"{{"success":false}}"#);
-            return;
-        }
-
-        let windows = CFArray::<CFTypeRef>::wrap_under_create_rule(windows_ref as CFArrayRef);
-
-        for i in 0..windows.len() {
-            let window_ref: CFTypeRef = *windows.get(i).unwrap();
-
-            let title_attr = CFString::new("AXTitle");
-            let mut title_ref: CFTypeRef = ptr::null_mut();
-
-            if AXUIElementCopyAttributeValue(
-                window_ref as AXUIElementRef,
-                title_attr.as_concrete_TypeRef() as CFTypeRef,
-                &mut title_ref,
-            ) == 0
-                && !title_ref.is_null()
-            {
-                let title_cf = CFString::wrap_under_create_rule(title_ref as _);
-                let title = title_cf.to_string();
-
-                if title == target_title {
-                    let true_value = CFBoolean::true_value();
-
-                    let main_attr = CFString::new("AXMain");
-                    AXUIElementSetAttributeValue(
-                        window_ref as AXUIElementRef,
-                        main_attr.as_concrete_TypeRef() as CFTypeRef,
-                        true_value.as_concrete_TypeRef() as CFTypeRef,
-                    );
-
-                    let focused_attr = CFString::new("AXFocused");
-                    AXUIElementSetAttributeValue(
-                        window_ref as AXUIElementRef,
-                        focused_attr.as_concrete_TypeRef() as CFTypeRef,
-                        true_value.as_concrete_TypeRef() as CFTypeRef,
-                    );
-
-                    println!(r#"{{"success":true}}"#);
-                    return;
-                }
-            }
-        }
-
-        println!(r#"{{"success":false}}"#);
-    }
 }
 
 pub fn focus_window_by_id(target_window_id: u32) {
@@ -380,8 +295,7 @@ pub fn focus_window_by_id(target_window_id: u32) {
         let mut target_title = String::new();
 
         for i in 0..array.len() {
-            let dict_ref: CFDictionaryRef =
-                *array.get(i).unwrap() as CFDictionaryRef;
+            let dict_ref: CFDictionaryRef = *array.get(i).unwrap() as CFDictionaryRef;
 
             let window_id = get_u32_from_dict(dict_ref, "kCGWindowNumber");
 
@@ -404,16 +318,22 @@ pub fn focus_window_by_id(target_window_id: u32) {
             );
             return;
         }
+        let ns_app: *mut Object = msg_send![
+            class!(NSRunningApplication),
+            runningApplicationWithProcessIdentifier: pid as i32
+        ];
+
+        let _: bool = msg_send![
+            ns_app,
+            activateWithOptions: 1u64
+        ];
 
         let app = AXUIElementCreateApplication(pid as i32);
 
         if app.is_null() {
             println!(
                 "{}",
-                format!(
-                    r#"{{"success":false,"stage":"ax_app_null","pid":{}}}"#,
-                    pid
-                )
+                format!(r#"{{"success":false,"stage":"ax_app_null","pid":{}}}"#, pid)
             );
             return;
         }
@@ -425,7 +345,8 @@ pub fn focus_window_by_id(target_window_id: u32) {
             app,
             windows_attr.as_concrete_TypeRef() as CFTypeRef,
             &mut windows_ref,
-        ) != 0 || windows_ref.is_null()
+        ) != 0
+            || windows_ref.is_null()
         {
             println!(
                 "{}",
@@ -437,8 +358,7 @@ pub fn focus_window_by_id(target_window_id: u32) {
             return;
         }
 
-        let windows =
-            CFArray::<CFTypeRef>::wrap_under_create_rule(windows_ref as CFArrayRef);
+        let windows = CFArray::<CFTypeRef>::wrap_under_create_rule(windows_ref as CFArrayRef);
 
         for i in 0..windows.len() {
             let window_ref: CFTypeRef = *windows.get(i).unwrap();
@@ -450,14 +370,15 @@ pub fn focus_window_by_id(target_window_id: u32) {
                 window_ref as AXUIElementRef,
                 title_attr.as_concrete_TypeRef() as CFTypeRef,
                 &mut title_ref,
-            ) == 0 && !title_ref.is_null()
+            ) == 0
+                && !title_ref.is_null()
             {
-                let title_cf =
-                    CFString::wrap_under_create_rule(title_ref as _);
+                let title_cf = CFString::wrap_under_create_rule(title_ref as _);
                 let title = title_cf.to_string();
-                println!("AX title: {}", title);
-                println!("Target title: {}", target_title);
-                if title.contains(&target_title) || target_title.contains(&title)  {
+               
+                let normalized_ax = normalize_title(&title);
+                let normalized_target = normalize_title(&target_title);
+                if normalized_ax == normalized_target {
                     let true_value = CFBoolean::true_value();
 
                     AXUIElementSetAttributeValue(
@@ -492,4 +413,13 @@ pub fn focus_window_by_id(target_window_id: u32) {
             )
         );
     }
+}
+
+fn normalize_title(title: &str) -> String {
+    title
+        .split(" - ")
+        .next()
+        .unwrap_or(title)
+        .trim()
+        .to_string()
 }
