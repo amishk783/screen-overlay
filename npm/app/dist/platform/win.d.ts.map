@@ -1,1 +1,1 @@
-{"version":3,"file":"win.d.ts","sourceRoot":"","sources":["../../src/platform/win.ts"],"names":[],"mappings":"AAEA,OAAO,KAAK,EAAe,aAAa,EAAc,MAAM,SAAS,CAAC;AA0CtE,wBAAgB,oBAAoB,IAAI,aAAa,CAUpD"}
+{"version":3,"file":"win.d.ts","sourceRoot":"","sources":["../../src/platform/win.ts"],"names":[],"mappings":"AACA,OAAO,KAAK,EAAe,aAAa,EAAc,MAAM,SAAS,CAAC;AAEtE,wBAAgB,oBAAoB,IAAI,aAAa,CAUpD"}

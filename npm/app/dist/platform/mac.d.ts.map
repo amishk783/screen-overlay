@@ -1,1 +1,1 @@
-{"version":3,"file":"mac.d.ts","sourceRoot":"","sources":["../../src/platform/mac.ts"],"names":[],"mappings":"AAEA,OAAO,KAAK,EAAe,aAAa,EAAc,MAAM,SAAS,CAAC;AA0CtE,wBAAgB,gBAAgB,IAAI,aAAa,CAUhD"}
+{"version":3,"file":"mac.d.ts","sourceRoot":"","sources":["../../src/platform/mac.ts"],"names":[],"mappings":"AACA,OAAO,KAAK,EAAe,aAAa,EAAc,MAAM,SAAS,CAAC;AAEtE,wBAAgB,gBAAgB,IAAI,aAAa,CAUhD"}
