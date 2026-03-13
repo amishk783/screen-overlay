@@ -1,126 +1,55 @@
+import { execFile } from 'child_process';
+import path from 'path';
 import type { FocusResult, WindowAdapter, WindowInfo } from './types';
 
-interface BrowserWindowLike {
-  id: number;
-  isDestroyed?: () => boolean;
-  getTitle: () => string;
-  getBounds: () => { x: number; y: number; width: number; height: number };
-  isMinimized?: () => boolean;
-  restore?: () => void;
-  isVisible?: () => boolean;
-  show?: () => void;
-  focus: () => void;
-  isFocused?: () => boolean;
-  webContents?: {
-    getOSProcessId?: () => number;
-  };
-}
+const PLATFORM_BINARY_MAP: Record<string, string> = {
+  'darwin-x64': 'darwin-x64/cross-window',
+  'darwin-arm64': 'darwin-arm64/cross-window',
+  'linux-x64': 'linux-x64/cross-window',
+  'linux-arm64': 'linux-arm64/cross-window',
+  'win32-x64': 'win32-x64/cross-window.exe',
+  'win32-arm64': 'win32-arm64/cross-window.exe',
+};
 
-interface ElectronModuleLike {
-  app?: {
-    name?: string;
-  };
-  BrowserWindow?: {
-    fromId: (id: number) => BrowserWindowLike | null;
-  };
-}
+function getBinaryPath(): string {
+  const key = `${process.platform}-${process.arch}`;
+  const relative = PLATFORM_BINARY_MAP[key];
 
-function loadElectronModule(): ElectronModuleLike | null {
-  try {
-    return require('electron') as ElectronModuleLike;
-  } catch {
-    return null;
-  }
-}
-
-function getWindowPid(window: BrowserWindowLike): number {
-  const pid = window.webContents?.getOSProcessId?.();
-  return typeof pid === 'number' && pid > 0 ? pid : process.pid;
-}
-
-function toWindowInfo(window: BrowserWindowLike): WindowInfo {
-  const bounds = window.getBounds();
-
-  return {
-    window_id: window.id,
-    pid: getWindowPid(window),
-    title: window.getTitle(),
-    x: bounds.x,
-    y: bounds.y,
-    width: bounds.width,
-    height: bounds.height,
-  };
-}
-
-function getBrowserWindow(
-  electronModule: ElectronModuleLike | null,
-  windowId: number
-): BrowserWindowLike | null {
-  const browserWindow = electronModule?.BrowserWindow;
-
-  if (!browserWindow || typeof browserWindow.fromId !== "function") {
-    return null;
+  if (!relative) {
+    throw new Error(
+      `cross-window: unsupported platform "${key}". ` +
+        `Supported: ${Object.keys(PLATFORM_BINARY_MAP).join(', ')}`
+    );
   }
 
-  const window = browserWindow.fromId(windowId);
-
-  if (!window || window.isDestroyed?.()) {
-    return null;
-  }
-
-  return window;
+  return path.join(__dirname, '..', '..', 'bin', relative);
 }
 
-export function createWindowsAdapter(
-  electronModule: ElectronModuleLike | null = loadElectronModule()
-): WindowAdapter {
-  return {
-    kind: 'win',
-    async getWindowById(windowId: number): Promise<WindowInfo | null> {
-      const window = getBrowserWindow(electronModule, windowId);
-      return window ? toWindowInfo(window) : null;
-    },
-    async focusWindow(windowId: number): Promise<FocusResult> {
-      if (!electronModule?.app || !electronModule?.BrowserWindow) {
-        return { success: false, stage: 'not_in_electron_main' };
-      }
-
-      const window = getBrowserWindow(electronModule, windowId);
-
-      if (!window) {
-        return { success: false, stage: 'window_not_found', window_id: windowId };
+function run<T>(args: string[]): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    execFile(getBinaryPath(), args, (err, stdout) => {
+      if (err) {
+        reject(err);
+        return;
       }
 
       try {
-        if (window.isMinimized?.()) {
-          window.restore?.();
-        }
-
-        if (!window.isVisible?.()) {
-          window.show?.();
-        }
-
-        window.focus();
-
-        if (window.isFocused?.() === false) {
-          return {
-            success: false,
-            stage: 'focus_failed',
-            ...toWindowInfo(window),
-          };
-        }
-
-        return {
-          success: true,
-          ...toWindowInfo(window),
-        };
+        resolve(JSON.parse(stdout) as T);
       } catch {
-        return {
-          success: false,
-          stage: 'focus_failed',
-          ...toWindowInfo(window),
-        };
+        reject(new Error(`cross-window: failed to parse output: ${stdout}`));
       }
+    });
+  });
+}
+
+export function createWindowsAdapter(): WindowAdapter {
+  return {
+    kind: 'win',
+    getWindowById(windowId: number): Promise<WindowInfo | null> {
+      return run<WindowInfo | null>(['get-window-by-id', String(windowId)]);
+    },
+    focusWindow(windowId: number): Promise<FocusResult> {
+      return run<FocusResult>(['focus', String(windowId)]);
     },
   };
 }

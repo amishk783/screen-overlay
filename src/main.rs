@@ -1,5 +1,7 @@
 #[cfg(target_os = "macos")]
 mod mac;
+#[cfg(target_os = "windows")]
+mod win;
 
 use std::env;
 
@@ -34,7 +36,7 @@ fn main() {
                 eprintln!("Usage: cross-window get-window-by-id <window_id>");
                 return;
             }
-            let window_id: u32 = match args[2].parse() {
+            let window_id: u64 = match args[2].parse() {
                 Ok(v) => v,
                 Err(_) => {
                     eprintln!("Invalid window ID: {}", args[2]);
@@ -48,7 +50,7 @@ fn main() {
                 eprintln!("Usage: cross-window focus <window_id>");
                 return;
             }
-            let window_id: u32 = match args[2].parse() {
+            let window_id: u64 = match args[2].parse() {
                 Ok(v) => v,
                 Err(_) => {
                     eprintln!("Invalid window ID: {}", args[2]);
@@ -67,7 +69,10 @@ fn get_windows(pid: u32) {
     #[cfg(target_os = "macos")]
     mac::get_windows(pid);
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    win::get_windows(pid);
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         let _ = pid;
         eprintln!("cross-window: get-windows is not supported on this platform");
@@ -75,11 +80,14 @@ fn get_windows(pid: u32) {
     }
 }
 
-fn get_window_by_id(window_id: u32) {
+fn get_window_by_id(window_id: u64) {
     #[cfg(target_os = "macos")]
-    mac::get_window_by_id(window_id);
+    mac::get_window_by_id(window_id as u32);
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    win::get_window_by_id(window_id);
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         let _ = window_id;
         eprintln!("cross-window: get-window-by-id is not supported on this platform");
@@ -87,11 +95,14 @@ fn get_window_by_id(window_id: u32) {
     }
 }
 
-fn focus(window_id: u32) {
+fn focus(window_id: u64) {
     #[cfg(target_os = "macos")]
-    mac::focus_window_by_id(window_id);
+    mac::focus_window_by_id(window_id as u32);
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    win::focus_window_by_id(window_id);
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         let _ = window_id;
         eprintln!("cross-window: focus is not supported on this platform");
